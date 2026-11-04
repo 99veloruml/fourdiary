@@ -1,0 +1,26 @@
+{
+  "name": "四象限日记",
+  "short_name": "四象限日记",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f0e8",
+  "theme_color": "#f5f0e8",
+  "description": "四象限日记法 · 待办 / 时间轴 / 打卡 / 碎碎念，支持每日归档与复盘",
+  "categories": ["productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "/apple-touch-icon.JPG",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.JPG",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

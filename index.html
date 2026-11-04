@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<!-- 添加到主屏幕的图标（JPG 格式） -->
+<link rel="icon" type="image/jpeg" sizes="32x32" href="apple-touch-icon.JPG">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.JPG">
+<link rel="apple-touch-icon" sizes="192x192" href="icon-512.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+
+<!-- 全屏运行，隐藏 Safari 地址栏与底部工具栏 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="四象限日记">
+<meta name="theme-color" content="#f5f0e8">
+
+<!-- 启动图（没有 splash.png 就删掉这行，否则会 404） -->
+<link rel="apple-touch-startup-image" href="splash.png">
+
+<!-- Web App Manifest -->
+<link rel="manifest" href="manifest.webmanifest">
+<title>四象限日记法</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --grid-gap: 10px;
+    --radius: 16px;
+    --bg: #f5f0e8;
+    --ink: #3a3a3a;
+    --sub: #8a8a8a;
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    display: flex; flex-direction: column;
+  }
+
+  /* 顶部日期栏 */
+  .header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 6px 12px;
+  }
+  .header .date-info { display: flex; flex-direction: column; gap: 2px; }
+  .header .day { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  .header .meta { font-size: 13px; color: var(--sub); }
+  .header .weather {
+    font-size: 22px; cursor: pointer; user-select: none;
+    background: #fff; border-radius: 50%; width: 42px; height: 42px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+
+  /* 四象限网格 */
+  .grid {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: var(--grid-gap);
+    min-height: 0;
+  }
+  .quad {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 14px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 2px 12px rgba(0,0,0,.05);
+    overflow: hidden;
+    position: relative;
+  }
+  .quad-head {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .quad-icon { font-size: 18px; }
+  .quad-title { font-size: 15px; font-weight: 700; }
+  .quad-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 2px; }
+  .quad-body::-webkit-scrollbar { width: 0; }
+
+  /* 清单项 */
+  .todo-item, .timeline-item, .checkin-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 0; font-size: 14px; line-height: 1.5;
+  }
+  .checkbox {
+    flex: 0 0 auto; width: 20px; height: 20px; border-radius: 6px;
+    border: 2px solid #d0c9bd; margin-top: 1px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+  }
+  .checkbox.done { background: #6fcf97; border-color: #6fcf97; }
+  .checkbox.done + .text { text-decoration: line-through; color: var(--sub); }
+  .text { flex: 1 1 auto; word-break: break-word; outline: none; }
+  .text:focus { background: #fff9e6; border-radius: 4px; }
+  .text.ph { color: #cfc7ba; }
+  .del-btn {
+    flex: 0 0 auto; opacity: 0; font-size: 16px; color: #e57373;
+    cursor: pointer; padding: 0 2px; transition: opacity .2s;
+  }
+  .todo-item:hover .del-btn, .timeline-item:hover .del-btn { opacity: 1; }
+
+  /* 时间轴 */
+  .timeline-item { position: relative; padding-left: 28px; }
+  .timeline-item::before {
+    content: ''; position: absolute; left: 10px; top: 0; bottom: 0;
+    width: 2px; background: #eee7d8;
+  }
+  .timeline-item::after {
+    content: ''; position: absolute; left: 5px; top: 12px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #f2c94c; border: 2px solid #fff; box-shadow: 0 0 0 2px #f2c94c33;
+  }
+  .timeline-time {
+    flex: 0 0 52px; font-size: 13px; font-weight: 600; color: #c9982b;
+    font-variant-numeric: tabular-nums; cursor: pointer; user-select: none;
+    border-radius: 5px; padding: 2px 3px; margin-left: -3px;
+    transition: background .15s;
+  }
+  .timeline-time:hover, .timeline-time:focus { background: #fff5d6; outline: none; }
+  .tl-time-tip {
+    font-size: 11px; color: #c9c1b2; padding: 0 0 8px 28px; line-height: 1.4;
+  }
+  .tl-time-tip b { color: #c9982b; }
+
+  /* 打卡 */
+  .checkin-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    margin-bottom: 12px;
+  }
+  .checkin-cell {
+    aspect-ratio: 1; border-radius: 8px; background: #f7f3ec;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--sub); gap: 2px; cursor: pointer;
+    transition: all .2s; position: relative;
+  }
+  .checkin-cell .dot {
+    width: 10px; height: 10px; border-radius: 50%; background: #e8e0d0; transition: all .2s;
+  }
+  .checkin-cell.done { background: #e8f7ee; }
+  .checkin-cell.done .dot { background: #6fcf97; }
+  .checkin-cell.today { box-shadow: 0 0 0 2px #f2c94c; }
+
+  .habit-list { display: flex; flex-direction: column; gap: 2px; }
+  .habit-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 0; font-size: 14px; border-bottom: 1px dashed #f0ebe1;
+  }
+  .habit-row:last-child { border-bottom: none; }
+  .habit-flame { font-size: 15px; width: 20px; text-align: center; }
+  .habit-name { flex: 1 1 auto; outline: none; }
+  .habit-name:focus { background: #fff9e6; border-radius: 4px; }
+  .habit-toggle {
+    font-size: 20px; cursor: pointer; user-select: none; line-height: 1;
+  }
+
+  /* 碎碎念 */
+  .diary-input {
+    width: 100%; flex: 1 1 auto; border: none; resize: none;
+    font-size: 14px; line-height: 1.7; color: var(--ink);
+    background: transparent; outline: none;
+    font-family: inherit;
+  }
+  .diary-counter {
+    flex: 0 0 auto; text-align: right; font-size: 11px; color: #ccc; margin-top: 4px;
+  }
+
+  /* 添加按钮 */
+  .add-bar {
+    flex: 0 0 auto; margin-top: 8px; display: flex; gap: 6px;
+  }
+  .add-btn {
+    flex: 1; font-size: 12px; color: var(--sub); text-align: center;
+    padding: 7px; border: 1.5px dashed #e0d8c8; border-radius: 10px;
+    cursor: pointer; transition: all .2s;
+  }
+  .add-btn:active { background: #f7f3ec; }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(.8);
+    background: rgba(0,0,0,.75); color: #fff; padding: 12px 22px;
+    border-radius: 12px; font-size: 14px; opacity: 0; pointer-events: none;
+    transition: all .25s; z-index: 99;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+
+  /* 底部提示 */
+  .footer {
+    flex: 0 0 auto; text-align: center; font-size: 11px; color: #c9c1b2;
+    padding-top: 8px;
+  }
+
+  /* 历史回顾入口 */
+  .review-bar {
+    flex: 0 0 auto; margin: 8px 0 -2px;
+    display: flex; align-items: center; gap: 8px; justify-content: flex-end;
+  }
+  .review-btn {
+    font-size: 12px; color: #b9a98c; background: #fff;
+    border: 1.5px dashed #e0d8c8; border-radius: 20px;
+    padding: 6px 14px; cursor: pointer; transition: all .2s;
+  }
+  .review-btn:active { background: #f7f3ec; }
+
+  /* 遮罩层 */
+  .mask {
+    position: fixed; inset: 0; background: rgba(40,36,32,.5);
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 100;
+  }
+  .mask.show { opacity: 1; pointer-events: auto; }
+
+  /* 侧滑抽屉 */
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 88%; max-width: 400px;
+    background: var(--bg); padding: 16px 14px calc(env(safe-area-inset-bottom,0px) + 20px);
+    transform: translateX(102%); transition: transform .28s ease;
+    z-index: 101; display: flex; flex-direction: column;
+    box-shadow: -4px 0 24px rgba(0,0,0,.12);
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 12px; border-bottom: 1px solid #ebe3d6; margin-bottom: 12px;
+    flex: 0 0 auto;
+  }
+  .drawer-head .t { font-size: 16px; font-weight: 700; }
+  .drawer-close { font-size: 22px; color: #b9a98c; cursor: pointer; line-height: 1; padding: 0 4px; }
+  .drawer-body { flex: 1 1 auto; overflow-y: auto; padding-right: 2px; }
+  .drawer-body::-webkit-scrollbar { width: 0; }
+
+  /* 月历 */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-head .m { font-size: 14px; font-weight: 600; }
+  .cal-nav { font-size: 18px; color: #b9a98c; cursor: pointer; padding: 2px 10px; user-select: none; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; margin-bottom: 14px; }
+  .cal-w { text-align: center; font-size: 10px; color: #c9c1b2; padding-bottom: 2px; }
+  .cal-cell {
+    aspect-ratio: 1; border-radius: 8px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #d8d2c6; cursor: pointer; transition: all .15s;
+    position: relative; flex-direction: column; gap: 3px;
+  }
+  .cal-cell.real { color: var(--ink); }
+  .cal-cell.today { box-shadow: 0 0 0 2px #f2c94c; font-weight: 700; }
+  .cal-cell.selected { background: #f2c94c; color: #fff; font-weight: 700; }
+  .cal-cell .rate {
+    width: 14px; height: 3px; border-radius: 2px; background: #e8e0d0;
+  }
+  .cal-cell.done-day .rate { background: #6fcf97; }
+  .cal-cell.sel-part .rate { background: #f2c94c; }
+
+  /* 历史详情 */
+  .hist-card { background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .hist-date { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .hist-date .w { font-size: 11px; color: var(--sub); font-weight: 400; }
+  .hist-empty { font-size: 12px; color: #c9c1b2; text-align: center; padding: 14px 0; }
+  .hist-section { margin-bottom: 12px; }
+  .hist-label { font-size: 11px; color: var(--sub); margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .hist-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 12px; background: #f7f3ec; border-radius: 8px; padding: 5px 10px; line-height: 1.4; }
+  .chip.done { background: #e8f7ee; color: #4c9f70; text-decoration: line-through; }
+  .chip.tl { background: #fff7e0; padding-left: 8px; }
+  .chip.tl .h { color: #c9982b; font-weight: 600; margin-right: 6px; font-size: 11px; }
+  .hist-diary { font-size: 13px; line-height: 1.7; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+  .hist-stats { display: flex; gap: 8px; margin-top: 4px; }
+  .hist-stat {
+    flex: 1; background: #f7f3ec; border-radius: 10px; padding: 8px 6px;
+    text-align: center; font-size: 11px; color: var(--sub);
+  }
+  .hist-stat b { display: block; font-size: 18px; color: var(--ink); line-height: 1.3; }
+  .hist-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .hist-actions .btn {
+    flex: 1; text-align: center; font-size: 13px; padding: 9px; border-radius: 10px;
+    cursor: pointer; transition: all .2s;
+  }
+  .btn-copy { background: #fff; border: 1.5px solid #e0d8c8; color: var(--ink); }
+  .btn-del { background: #fff; border: 1.5px solid #f0dada; color: #d97777; }
+  .btn-copy:active, .btn-del:active { opacity: .7; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="date-info">
+    <span class="day" id="dayStr"></span>
+    <span class="meta" id="metaStr"></span>
+  </div>
+  <div class="weather" id="weatherBtn" title="切换天气">⛅</div>
+</div>
+
+<div class="grid">
+
+  <!-- 左上：待办清单 -->
+  <div class="quad">
+    <div class="quad-head">
+      <span class="quad-icon">📋</span>
+      <span class="quad-title">待办清单</span>
+    </div>
+    <div class="quad-body" id="todoBody"></div>
+    <div class="add-bar">
+      <div class="add-btn" onclick="addTodo()">＋ 添加待办</div>
+    </div>
+  </div>
+
+  <!-- 右上：时间轴 -->
+  <div class="quad">
+    <div class="quad-head">
+      <span class="quad-icon">⏰</span>
+      <span class="quad-title">时间轴</span>
+    </div>
+    <div class="quad-body" id="tlBody"></div>
+    <div class="add-bar">
+      <div class="add-btn" onclick="addTimeline()">＋ 添加事件</div>
+    </div>
+  </div>
+
+  <!-- 左下：每日打卡 -->
+  <div class="quad">
+    <div class="quad-head">
+      <span class="quad-icon">🔥</span>
+      <span class="quad-title">每日打卡</span>
+    </div>
+    <div class="quad-body">
+      <div class="checkin-grid" id="checkinGrid"></div>
+      <div class="habit-list" id="habitList"></div>
+    </div>
+    <div class="add-bar">
+      <div class="add-btn" onclick="addHabit()">＋ 新建习惯</div>
+    </div>
+  </div>
+
+  <!-- 右下：碎碎念 -->
+  <div class="quad">
+    <div class="quad-head">
+      <span class="quad-icon">✏️</span>
+      <span class="quad-title">碎碎念日记</span>
+    </div>
+    <textarea class="diary-input" id="diaryInput" placeholder="今天有什么想记录的吗…"></textarea>
+    <div class="diary-counter" id="diaryCount">0 字</div>
+  </div>
+
+</div>
+
+<div class="review-bar">
+  <div class="review-btn" onclick="openReview(todayStr())">📅 查看历史 / 复盘 →</div>
+</div>
+<div class="footer">轻点勾选即保存 · 数据仅存在本机</div>
+<div class="toast" id="toast"></div>
+
+<!-- 遮罩 + 侧滑抽屉 -->
+<div class="mask" id="mask" onclick="closeReview()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <span class="t" id="revDate"></span>
+    <span class="drawer-close" onclick="closeReview()">×</span>
+  </div>
+  <div class="drawer-body">
+    <div class="hist-stats" id="revStats"></div>
+    <div class="cal-head">
+      <span class="cal-nav" onclick="shiftMonth(-1)">‹</span>
+      <span class="cal-nav" style="font-size:14px;font-weight:600;" id="calMonth"></span>
+      <span class="cal-nav" onclick="shiftMonth(1)">›</span>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div id="revBody"></div>
+  </div>
+  <div class="hist-actions" id="revActions"></div>
+</div>
+
+<script>
+const KEY = 'quad_diary_v2';
+const weathers = ['☀️','⛅','☁️','🌧️','⛈️','🌫️'];
+let state = load();
+let currentDay = todayStr();   // 当前正在查看的日期（今日或历史某天）
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s) return migrate(s);
+  } catch(e) {}
+  return initState();
+}
+/* 旧版数据迁移：把根级字段并入今天 */
+function migrate(s) {
+  if (Array.isArray(s.todos) && !s.days) {
+    const today = todayStr();
+    const days = {};
+    days[today] = {
+      todos: s.todos || [],
+      timeline: s.timeline || [],
+      diary: s.diary || ''
+    };
+    return {
+      weather: s.weather || 1,
+      habits: s.habits || [],
+      checkin: s.checkin || {},
+      days: days
+    };
+  }
+  return s;
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+function initState() {
+  return {
+    weather: 1,
+    habits: [],
+    checkin: {},
+    days: {}
+  };
+}
+
+/* 获取某天的数据对象（不存在则创建） */
+function dayData(key) {
+  if (!state.days[key]) {
+    state.days[key] = { todos: [], timeline: [], diary: '' };
+  }
+  return state.days[key];
+}
+
+/* ---------- 日期 ---------- */
+function pad(n){ return String(n).padStart(2,'0'); }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function nowHM() { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function parseStr(s) { const p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
+
+function renderHeader() {
+  const isToday = currentDay === todayStr();
+  const d = isToday ? new Date() : parseStr(currentDay);
+  const dayStr = `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${WEEK[d.getDay()]}`;
+  document.getElementById('dayStr').textContent = isToday ? dayStr : `${dayStr}（历史）`;
+  const doneCount = state.habits.filter(h => state.checkin[currentDay] && state.checkin[currentDay][h.id]).length;
+  document.getElementById('metaStr').textContent =
+    (isToday ? `已坚持 ${getStreak()} 天 · 今日打卡 ${doneCount}/${state.habits.length}`
+             : `这天打卡 ${doneCount}/${state.habits.length}`)
+    + (isToday ? '' : '   · 点此处返回今日');
+  document.getElementById('weatherBtn').textContent = weathers[state.weather];
+}
+document.getElementById('metaStr').style.cursor = 'pointer';
+
+/* ---------- 通用渲染 ---------- */
+function render() {
+  renderHeader();
+  renderTodos();
+  renderTimeline();
+  renderCheckin();
+  renderHabits();
+}
+
+/* ---------- 待办 ---------- */
+function renderTodos() {
+  const body = document.getElementById('todoBody');
+  const todos = dayData(currentDay).todos;
+  const readonly = currentDay !== todayStr();
+  if (todos.length === 0) {
+    body.innerHTML = readonly
+      ? '<div style="color:#c9c1b2;font-size:13px;text-align:center;padding:20px 0;">这天没有待办记录</div>'
+      : '<div style="color:#c9c1b2;font-size:13px;text-align:center;padding:20px 0;">还没有待办，点击下方添加 ✍️</div>';
+    return;
+  }
+  body.innerHTML = todos.map((t,i) => `
+    <div class="todo-item">
+      <div class="checkbox ${t.done?'done':''}" ${readonly?'':`onclick="toggleTodo(${i})"`}>${t.done?'✓':''}</div>
+      <div class="text ${!t.text?'placeholder':''}" contenteditable="${readonly?'false':'true'}" data-i="${i}" onblur="editTodo(${i},this.innerText)" onkeydown="todoKey(event,${i})" onfocus="todoFocus(this)">${t.text ? escapeHtml(t.text) : '输入待办内容…'}</div>
+      ${readonly?'':`<span class="del-btn" onclick="delTodo(${i})">×</span>`}
+    </div>`).join('');
+}
+function addTodo() {
+  if (currentDay !== todayStr()) return;
+  dayData(currentDay).todos.push({ text: '', done: false });
+  save(); renderTodos();
+  focusLast('.todo-item .text', true);
+}
+function todoKey(e, i) {
+  if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+}
+function todoFocus(el) {
+  if (el.innerText === '输入待办内容…') { el.innerText = ''; el.classList.remove('placeholder'); }
+}
+function toggleTodo(i) {
+  if (currentDay !== todayStr()) return;
+  dayData(currentDay).todos[i].done = !dayData(currentDay).todos[i].done;
+  save(); renderTodos();
+}
+function editTodo(i, val) {
+  if (currentDay !== todayStr()) return;
+  if (!val.trim()) { dayData(currentDay).todos.splice(i,1); }
+  else { dayData(currentDay).todos[i].text = val.trim(); }
+  save(); renderTodos();
+}
+function delTodo(i) {
+  if (currentDay !== todayStr()) return;
+  dayData(currentDay).todos.splice(i,1);
+  save(); renderTodos();
+}
+
+/* ---------- 时间轴 ---------- */
+function renderTimeline() {
+  const body = document.getElementById('tlBody');
+  const list = dayData(currentDay).timeline;
+  const readonly = currentDay !== todayStr();
+  const sorted = [...list].sort();
+  if (sorted.length === 0) {
+    body.innerHTML = readonly
+      ? '<div style="color:#c9c1b2;font-size:13px;text-align:center;padding:16px 0 4px;">这天没有时间轴记录</div>'
+      : '<div style="color:#c9c1b2;font-size:13px;text-align:center;padding:16px 0 4px;">记录一天的时间轨迹 🕐</div>'
+        + '<div class="tl-time-tip">轻点<b>时间数字</b>即可自定义，如 8:00 / 13:30</div>';
+    return;
+  }
+  body.innerHTML = (readonly?'':`<div class="tl-time-tip">轻点<b>时间数字</b>即可修改</div>`) + sorted.map(key => {
+    const idx = list.indexOf(key);
+    const [time, text] = key.split('|');
+    return `
+    <div class="timeline-item">
+      <span class="timeline-time" ${readonly?'':`onclick="editTime(${idx},this)" title="点击修改时间"`}>${time}</span>
+      <span class="text" contenteditable="${readonly?'false':'true'}" onblur="editTL(${idx},this.innerText)">${escapeHtml(text)}</span>
+      ${readonly?'':`<span class="del-btn" onclick="delTL(${idx})">×</span>`}
+    </div>`;
+  }).join('');
+}
+function addTimeline() {
+  if (currentDay !== todayStr()) return;
+  dayData(currentDay).timeline.push(`${nowHM()}|新事件`);
+  save(); renderTimeline();
+  focusLast('.timeline-item .text');
+}
+function editTL(idx, newText) {
+  if (currentDay !== todayStr()) return;
+  const list = dayData(currentDay).timeline;
+  if (idx < 0 || idx >= list.length) return;
+  if (!newText.trim()) { list.splice(idx,1); }
+  else {
+    const [time, _] = list[idx].split('|');
+    list[idx] = `${time}|${newText.trim()}`;
+  }
+  save(); renderTimeline();
+}
+function delTL(idx) {
+  if (currentDay !== todayStr()) return;
+  const list = dayData(currentDay).timeline;
+  if (idx < 0 || idx >= list.length) return;
+  list.splice(idx,1);
+  save(); renderTimeline();
+}
+/* 点击时间数字进入编辑模式 */
+function editTime(idx, el) {
+  if (el.isContentEditable) return;
+  if (currentDay !== todayStr()) return;
+  const list = dayData(currentDay).timeline;
+  const [cur, _] = list[idx].split('|');
+  el.contentEditable = true;
+  el.innerText = cur;
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  const finish = (commit) => {
+    el.removeEventListener('blur', blurHandler);
+    el.removeEventListener('keydown', keyHandler);
+    el.contentEditable = false;
+    const val = el.innerText.trim();
+    if (commit && idx >= 0 && idx < list.length) {
+      const m = val.match(/^(\d{1,2})[:：\s]?(\d{0,2})$/);
+      if (m) {
+        let hh = parseInt(m[1],10), mm = m[2] ? parseInt(m[2],10) : 0;
+        if (hh >= 0 && hh <= 24 && mm >= 0 && mm < 60) {
+          const newTime = `${pad(hh)}:${pad(mm)}`;
+          const [_, text] = list[idx].split('|');
+          const dup = list.some((k,i) => i !== idx && k === `${newTime}|${text}`);
+          if (newTime === cur) { renderTimeline(); return; }
+          if (dup) { show('这个时间已有事件了'); renderTimeline(); return; }
+          list[idx] = `${newTime}|${text}`;
+          save(); renderTimeline(); return;
+        }
+      }
+      show('格式有误，用 HH:MM，如 13:30');
+    }
+    renderTimeline();
+  };
+  const blurHandler = () => finish(true);
+  const keyHandler = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    if (e.key === 'Escape') { finish(false); }
+  };
+  el.addEventListener('blur', blurHandler);
+  el.addEventListener('keydown', keyHandler);
+}
+
+/* ---------- 打卡 ---------- */
+function renderCheckin() {
+  const grid = document.getElementById('checkinGrid');
+  const t = new Date();
+  let html = '';
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(t); d.setDate(t.getDate() - i);
+    const key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const isToday = i === 0;
+    const done = isDone(key);
+    html += `<div class="checkin-cell ${done?'done':''} ${isToday?'today':''}" onclick="openReview('${key}')">
+      <span class="dot"></span>
+      <span>${pad(d.getDate())}</span>
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+function isDone(key) {
+  const day = state.checkin[key];
+  if (!day) return false;
+  return state.habits.length > 0 && state.habits.every(h => day[h.id]);
+}
+function toggleToday() { openReview(todayStr()); }
+
+function renderHabits() {
+  const list = document.getElementById('habitList');
+  const t = currentDay;
+  const readonly = currentDay !== todayStr();
+  if (state.habits.length === 0) {
+    list.innerHTML = readonly
+      ? '<div style="color:#c9c1b2;font-size:13px;text-align:center;padding:12px 0 0;">这天还没有习惯配置</div>'
+      : '<div style="color:#c9c1b2;font-size:13px;text-align:center;padding:12px 0 0;">还没有习惯，先建一个吧 🌱</div>';
+    return;
+  }
+  list.innerHTML = state.habits.map(h => {
+    const done = state.checkin[t] && state.checkin[t][h.id];
+    return `<div class="habit-row">
+      <span class="habit-flame">${h.flame||'🔥'}</span>
+      <span class="habit-name" contenteditable="${readonly?'false':'true'}" onblur="editHabit('${h.id}',this.innerText)">${escapeHtml(h.name)}</span>
+      <span class="habit-toggle" ${readonly?'':`onclick="toggleHabit('${h.id}')"`}>${done?'✔️':'⭕'}</span>
+    </div>`;
+  }).join('');
+}
+function addHabit() {
+  const id = 'h' + Date.now();
+  state.habits.push({ id, name: '新习惯', flame: '🔥' });
+  save(); render();
+  focusLast('.habit-name');
+}
+function toggleHabit(id) {
+  if (currentDay !== todayStr()) return;
+  if (!state.checkin[currentDay]) state.checkin[currentDay] = {};
+  state.checkin[currentDay][id] = !state.checkin[currentDay][id];
+  save(); render();
+}
+function editHabit(id, val) {
+  if (currentDay !== todayStr()) return;
+  const h = state.habits.find(x => x.id === id);
+  if (h) {
+    if (!val.trim()) { deleteHabit(id); return; }
+    h.name = val.trim();
+    save(); renderHabits();
+  }
+}
+function deleteHabit(id) {
+  state.habits = state.habits.filter(h => h.id !== id);
+  save(); render();
+}
+
+/* ---------- 日记 ---------- */
+const diaryEl = document.getElementById('diaryInput');
+function syncDiary() {
+  const isToday = currentDay === todayStr();
+  diaryEl.value = dayData(currentDay).diary || '';
+  diaryEl.readOnly = !isToday;
+  diaryEl.placeholder = isToday ? '今天有什么想记录的吗…' : '（历史记录，只读）';
+  document.getElementById('diaryCount').textContent = diaryEl.value.length + ' 字';
+}
+diaryEl.addEventListener('input', () => {
+  if (currentDay !== todayStr()) return;
+  dayData(currentDay).diary = diaryEl.value;
+  document.getElementById('diaryCount').textContent = diaryEl.value.length + ' 字';
+  save();
+});
+
+/* ---------- 工具 ---------- */
+function getStreak() {
+  let n = 0;
+  const t = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(t); d.setDate(t.getDate() - i);
+    const key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    if (isDone(key)) n++; else break;
+  }
+  return n;
+}
+function focusLast(sel) {
+  setTimeout(() => {
+    const els = document.querySelectorAll(sel);
+    const el = els[els.length-1];
+    if (el) { el.focus(); document.getSelection().selectAllChildren(el); }
+  }, 50);
+}
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s){ return s.replace(/'/g,"\\'"); }
+function show(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1200);
+}
+
+/* 天气切换 */
+document.getElementById('weatherBtn').addEventListener('click', () => {
+  state.weather = (state.weather + 1) % weathers.length;
+  save(); renderHeader();
+});
+
+/* 点击顶部日期回到今日 */
+document.getElementById('metaStr').addEventListener('click', () => {
+  if (currentDay !== todayStr()) { currentDay = todayStr(); syncDiary(); render(); }
+});
+
+/* 切换查看日期 */
+function goDay(key) {
+  currentDay = key;
+  syncDiary();
+  render();
+}
+function nextDay() {
+  const d = parseStr(currentDay); d.setDate(d.getDate() + 1);
+  const k = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  if (k <= todayStr()) { currentDay = k; syncDiary(); render(); }
+}
+function prevDay() {
+  const d = parseStr(currentDay); d.setDate(d.getDate() - 1);
+  currentDay = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  syncDiary(); render();
+}
+
+/* ---------- 历史回顾抽屉 ---------- */
+let calYM = { y: new Date().getFullYear(), m: new Date().getMonth() };
+function openReview(key) {
+  calYM = { y: parseStr(key).getFullYear(), m: parseStr(key).getMonth() };
+  currentDay = key;
+  renderReview();
+  document.getElementById('drawer').classList.add('show');
+  document.getElementById('mask').classList.add('show');
+}
+function closeReview() {
+  document.getElementById('drawer').classList.remove('show');
+  document.getElementById('mask').classList.remove('show');
+}
+function renderReview() {
+  const d = parseStr(currentDay);
+  const isToday = currentDay === todayStr();
+  const day = dayData(currentDay);
+  const doneCount = state.habits.filter(h => state.checkin[currentDay] && state.checkin[currentDay][h.id]).length;
+  const todos = day.todos || [];
+  const doneTodos = todos.filter(t => t.done).length;
+
+  document.getElementById('revDate').innerHTML =
+    `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${WEEK[d.getDay()]}`
+    + (isToday ? ' <span class="w">（今天）</span>' : '');
+
+  document.getElementById('revStats').innerHTML = `
+    <div class="hist-stat"><b>${doneTodos}/${todos.length}</b>待办完成</div>
+    <div class="hist-stat"><b>${day.timeline?day.timeline.length:0}</b>时间轴</div>
+    <div class="hist-stat"><b>${doneCount}/${state.habits.length}</b>习惯打卡</div>`;
+
+  /* 待办 */
+  let html = `<div class="hist-section"><div class="hist-label">📋 待办清单</div>`;
+  if (todos.length === 0) html += `<div class="hist-empty">这天没有待办</div>`;
+  else html += `<div class="hist-chips">${todos.map(t =>
+    `<span class="chip ${t.done?'done':''}">${t.done?'✔ ':''}${escapeHtml(t.text)}</span>`).join('')}</div>`;
+  html += `</div>`;
+
+  /* 时间轴 */
+  html += `<div class="hist-section"><div class="hist-label">⏰ 时间轴</div>`;
+  const tl = (day.timeline||[]).slice().sort();
+  if (tl.length === 0) html += `<div class="hist-empty">这天没有时间轴</div>`;
+  else html += `<div class="hist-chips">${tl.map(k => {
+    const [time,text] = k.split('|');
+    return `<span class="chip tl"><span class="h">${time}</span>${escapeHtml(text)}</span>`;
+  }).join('')}</div>`;
+  html += `</div>`;
+
+  /* 习惯 */
+  html += `<div class="hist-section"><div class="hist-label">🔥 习惯打卡</div>`;
+  if (state.habits.length === 0) html += `<div class="hist-empty">还没有习惯</div>`;
+  else html += `<div class="hist-chips">${state.habits.map(h => {
+    const ok = state.checkin[currentDay] && state.checkin[currentDay][h.id];
+    return `<span class="chip ${ok?'done':''}">${h.flame||'🔥'} ${escapeHtml(h.name)} ${ok?'✔':''}</span>`;
+  }).join('')}</div>`;
+  html += `</div>`;
+
+  /* 碎碎念 */
+  html += `<div class="hist-section"><div class="hist-label">✏️ 碎碎念</div>`;
+  html += day.diary ? `<div class="hist-diary">${escapeHtml(day.diary)}</div>`
+                    : `<div class="hist-empty">这天没写日记</div>`;
+  html += `</div>`;
+
+  document.getElementById('revBody').innerHTML = html;
+
+  /* 操作按钮 */
+  document.getElementById('revActions').innerHTML = `
+    <div class="btn btn-copy" onclick="copyDay('${currentDay}')">📋 复制为文本</div>
+    <div class="btn btn-del" onclick="deleteDay('${currentDay}')">🗑 删除这天</div>`;
+}
+
+/* 复制某天为纯文本，方便粘贴到别处 */
+function copyDay(key) {
+  const d = parseStr(key);
+  const day = dayData(key);
+  const lines = [];
+  lines.push(`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${WEEK[d.getDay()]}`);
+  const todos = day.todos||[];
+  if (todos.length) {
+    lines.push('\n📋 待办');
+    todos.forEach(t => lines.push(`  ${t.done?'✔':'◻'} ${t.text}`));
+  }
+  const tl = (day.timeline||[]).slice().sort();
+  if (tl.length) {
+    lines.push('\n⏰ 时间轴');
+    tl.forEach(k => { const [time,text] = k.split('|'); lines.push(`  ${time}  ${text}`); });
+  }
+  if (state.habits.length) {
+    lines.push('\n🔥 习惯');
+    state.habits.forEach(h => {
+      const ok = state.checkin[key] && state.checkin[key][h.id];
+      lines.push(`  ${ok?'✔':'◻'} ${h.name}`);
+    });
+  }
+  if (day.diary) lines.push('\n✏️ 碎碎念\n' + day.diary);
+  const text = lines.join('\n');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => show('已复制，可粘贴到别处')).catch(() => fallbackCopy(text));
+  } else fallbackCopy(text);
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); show('已复制'); }
+  catch(e) { show('复制失败，请长按文本手动复制'); }
+  document.body.removeChild(ta);
+}
+function deleteDay(key) {
+  if (!confirm('确定删除 ' + key + ' 的记录？此操作不可恢复')) return;
+  delete state.days[key];
+  delete state.checkin[key];
+  save(); closeReview();
+  currentDay = todayStr(); syncDiary(); render();
+  show('已删除');
+}
+
+/* ---------- 月历 ---------- */
+function shiftMonth(delta) {
+  calYM.m += delta;
+  if (calYM.m > 11) { calYM.m = 0; calYM.y++; }
+  if (calYM.m < 0) { calYM.m = 11; calYM.y--; }
+  renderCalendar();
+}
+function renderCalendar() {
+  document.getElementById('calMonth').textContent = `${calYM.y} 年 ${calYM.m+1} 月`;
+  const first = new Date(calYM.y, calYM.m, 1);
+  const startWeek = first.getDay();
+  const daysInMonth = new Date(calYM.y, calYM.m+1, 0).getDate();
+  const today = todayStr();
+  let html = ['日','一','二','三','四','五','六'].map(w => `<div class="cal-w">${w}</div>`).join('');
+  for (let i = 0; i < startWeek; i++) html += `<div class="cal-cell"></div>`;
+  for (let dd = 1; dd <= daysInMonth; dd++) {
+    const key = `${calYM.y}-${pad(calYM.m+1)}-${pad(dd)}`;
+    const d = new Date(calYM.y, calYM.m, dd);
+    const isReal = key <= today;   // 未到的日期不显示数据
+    const day = state.days[key];
+    const hasData = day && (
+      (day.todos && day.todos.length) ||
+      (day.timeline && day.timeline.length) ||
+      (day.diary && day.diary.trim())
+    );
+    const cls = ['cal-cell'];
+    if (isReal) cls.push('real');
+    if (key === currentDay) cls.push('selected');
+    if (key === today) cls.push('today');
+    if (hasData) cls.push(key === currentDay ? 'sel-part' : 'done-day');
+    html += `<div class="${cls.join(' ')}" ${isReal?`onclick="pickDate('${key}')"`:''}>
+      <span>${dd}</span><span class="rate"></span></div>`;
+  }
+  document.getElementById('calGrid').innerHTML = html;
+}
+function pickDate(key) {
+  currentDay = key;
+  const d = parseStr(key);
+  calYM = { y: d.getFullYear(), m: d.getMonth() };
+  syncDiary(); render();
+  closeReview();
+}
+
+/* 抽屉内导航：左右翻到上一天/下一天 */
+function revPrev() {
+  const d = parseStr(currentDay); d.setDate(d.getDate() - 1);
+  currentDay = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  calYM = { y: d.getFullYear(), m: d.getMonth() };
+  renderReview(); renderCalendar();
+}
+function revNext() {
+  const d = parseStr(currentDay); d.setDate(d.getDate() + 1);
+  const k = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  if (k > todayStr()) return;
+  currentDay = k;
+  calYM = { y: d.getFullYear(), m: d.getMonth() };
+  renderReview(); renderCalendar();
+}
+
+/* 拦截主渲染时同步日记 */
+const _origRender = render;
+render = function() { _origRender(); syncDiary(); };
+
+render();
+</script>
+</body>
+</html>
